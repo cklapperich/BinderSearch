@@ -32,7 +32,6 @@
 
 namespace PackControl
 {
-
     public static class CardGenerator 
     {
         /// <summary>
@@ -48,7 +47,8 @@ namespace PackControl
         {
             try
             {
-                // 1. Determine rarity (using base game logic for now)
+                // 1. Determine rarity (using base game logic for now)git remote add origin git@gitlab.com:cklapperichmn/PackControl.git
+
                 ERarity rarity = DetermineCardRarity(packType, odds);
 
                 // 2. Select monster of that rarity
