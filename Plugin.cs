@@ -182,22 +182,8 @@ namespace BinderSearch
                             if (targetPage < 1) targetPage = 1;
                             if (targetPage > maxPage) targetPage = maxPage;
 
-                            // Simulate pressing next/prev buttons
-                            while (targetPage != currentPage)
-                            {
-                                if (targetPage > currentPage)
-                                {
-                                    AccessTools.Method(typeof(CollectionBinderFlipAnimCtrl), "OnPressGoNextPage")
-                                        ?.Invoke(binderUI.m_CollectionAlbum, null);
-                                    currentPage++;
-                                }
-                                else
-                                {
-                                    AccessTools.Method(typeof(CollectionBinderFlipAnimCtrl), "OnPressPrevPage")
-                                        ?.Invoke(binderUI.m_CollectionAlbum, null);
-                                    currentPage--;
-                                }
-                            }
+                            // TODO: call the binder animation ctrl flip patch here.
+
                             Logger.LogInfo($"Navigation complete - now on page {currentPage}");
                         }
                     }
