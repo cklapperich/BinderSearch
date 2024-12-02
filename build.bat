@@ -5,12 +5,12 @@ setlocal enabledelayedexpansion
 set "SCRIPT_DIR=%~dp0"
 
 :: Define paths relative to script directory
-set "SOURCE_DLL=%SCRIPT_DIR%bin\Debug\netstandard2.1\PackControl.dll"
-set "BEPINEX_PLUGINS=%SCRIPT_DIR%BepInEx\plugins\PackControl\PackControl.dll"
-set "STEAM_PLUGINS=C:\Program Files (x86)\Steam\steamapps\common\TCG Card Shop Simulator\BepInEx\plugins\PackControl\PackControl.dll"
-set "ZIP_NAME=PackControl.zip"
+set "SOURCE_DLL=%SCRIPT_DIR%bin\Debug\netstandard2.1\BinderSearch.dll"
+set "BEPINEX_PLUGINS=%SCRIPT_DIR%BepInEx\plugins\BinderSearch\BinderSearch.dll"
+set "STEAM_PLUGINS=C:\Program Files (x86)\Steam\steamapps\common\TCG Card Shop Simulator\BepInEx\plugins\BinderSearch.dll"
+set "ZIP_NAME=BinderSearch.zip"
 set "MOD_FOLDER=%SCRIPT_DIR%BepInEx"
-set "DESTINATION_PATH=%SCRIPT_DIR%PackControl.zip"
+set "DESTINATION_PATH=%SCRIPT_DIR%BinderSearch.zip"
 
 :: Echo paths for verification
 echo [INFO] Current directory: %CD%

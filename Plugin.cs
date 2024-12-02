@@ -1,4 +1,4 @@
-﻿using BepInEx;
+﻿﻿using BepInEx;
 using BepInEx.Configuration;
 using BepInEx.Logging;
 using System.Collections.Generic;
@@ -6,198 +6,246 @@ using System.IO;
 using System;
 using System.Linq;
 using HarmonyLib;
+using UnityEngine;
+using TMPro;
+using UnityEngine.UI;
 
-namespace PackControl;
-
-public class CardOddsConfig 
+namespace BinderSearch
 {
-    public Dictionary<ECardBorderType, float> BorderTypeOdds { get; set; }
-    public Dictionary<ERarity, float> RarityWeights { get; set; }
-    public float FoilChance { get; set; }
-    public bool UseCustomRarityWeights { get; set; }
-    
-    public CardOddsConfig()
+    [BepInPlugin(MyPluginInfo.PLUGIN_GUID, MyPluginInfo.PLUGIN_NAME, MyPluginInfo.PLUGIN_VERSION)]
+    [BepInProcess("Card Shop Simulator.exe")]
+    public class Plugin : BaseUnityPlugin
     {
-        BorderTypeOdds = new Dictionary<ECardBorderType, float>();
-        RarityWeights = new Dictionary<ERarity, float>();
-        FoilChance = 0.05f;
-        UseCustomRarityWeights = false;
-    }
+        internal static new ManualLogSource Logger;
+        private readonly Harmony harmony = new Harmony(MyPluginInfo.PLUGIN_GUID);
+        public static ConfigEntry<KeyboardShortcut> SearchHotkey;
+        public static bool activeGame = false;
+        private static int currentPage = 1;
+        private string pendingValue = "";
+        
+        // UI Components
+        private SimpleTextEntry textEntry;
+        private bool uiInitialized = false;
+        private static GameObject searchUIObject;
 
-    // Deep copy constructor
-    public CardOddsConfig(CardOddsConfig source)
-    {
-        BorderTypeOdds = new Dictionary<ECardBorderType, float>(source.BorderTypeOdds);
-        RarityWeights = new Dictionary<ERarity, float>(source.RarityWeights);
-        FoilChance = source.FoilChance;
-        UseCustomRarityWeights = source.UseCustomRarityWeights;
-    }
-}
-
-[BepInPlugin(MyPluginInfo.PLUGIN_GUID, MyPluginInfo.PLUGIN_NAME, MyPluginInfo.PLUGIN_VERSION)]
-public class Plugin : BaseUnityPlugin
-{
-    internal static new ManualLogSource Logger;
-    
-    private readonly Harmony harmony = new Harmony(MyPluginInfo.PLUGIN_GUID);
-    
-    private ConfigFile DefaultConfig { get; set; }
-    private ConfigFile OddsConfig { get; set; }
-    
-    public static Dictionary<string, CardOddsConfig> FirstSixOdds { get; private set; }
-    public static Dictionary<string, CardOddsConfig> FinalCardOdds { get; private set; }
-    
-    // Global default configurations
-    private static CardOddsConfig GlobalFirstSixConfig { get; set; }
-    private static CardOddsConfig GlobalFinalConfig { get; set; }
-
-    private void Awake()
-    {
-        Logger = base.Logger;
-        Logger.LogInfo($"Plugin {MyPluginInfo.PLUGIN_GUID} is loaded!");
-
-        DefaultConfig = Config;
-        OddsConfig = new ConfigFile(
-            Path.Combine(Path.GetDirectoryName(Info.Location), "cardodds.cfg"), 
-            true
-        );
-
-        FirstSixOdds = new Dictionary<string, CardOddsConfig>();
-        FinalCardOdds = new Dictionary<string, CardOddsConfig>();
-
-        try 
+        private void Awake()
         {
-            LoadDefaultConfig();
-            LoadGlobalConfig();
-            LoadPackSpecificConfigs();
-            LogLoadedConfig();
+            Logger = base.Logger;
+            Logger.LogInfo($"Plugin Binder Search is loaded!");
+
+            SearchHotkey = Config.Bind(
+                "Hotkey Settings",
+                "Search Hotkey",
+                new KeyboardShortcut(KeyCode.T),
+                "Press this key to activate the binder search feature when the binder is open."
+            );
+
+            harmony.PatchAll();
         }
-        catch (Exception ex)
+
+        private void Start()
         {
-            Logger.LogError($"Error loading configuration: {ex.Message}");
+            SetupSearchUI();
         }
-        harmony.PatchAll();
-    }
 
-    private void LoadDefaultConfig()
-    {
-        // Reserved for future configuration menu implementation
-    }
-
-    private void LoadGlobalConfig()
-    {
-        // Load global defaults first
-        GlobalFirstSixConfig = new CardOddsConfig();
-        LoadConfigSection(OddsConfig, "Global.FirstSix", GlobalFirstSixConfig);
-
-        GlobalFinalConfig = new CardOddsConfig();
-        LoadConfigSection(OddsConfig, "Global.Final", GlobalFinalConfig);
-    }
-
-    private void LoadPackSpecificConfigs()
-    {
-        foreach (ECollectionPackType packType in Enum.GetValues(typeof(ECollectionPackType)))
+        private void SetupSearchUI()
         {
-            if (packType == ECollectionPackType.None) continue;
-            string packSection = packType.ToString();
-
-            // First copy global configs
-            FirstSixOdds[packSection] = new CardOddsConfig(GlobalFirstSixConfig);
-            FinalCardOdds[packSection] = new CardOddsConfig(GlobalFinalConfig);
-
-            // Then try to load pack-specific overrides if they exist
-            if (HasPackSpecificConfig(OddsConfig, $"{packSection}.FirstSix"))
+            try
             {
-                LoadConfigSection(OddsConfig, $"{packSection}.FirstSix", FirstSixOdds[packSection]);
+                if (uiInitialized && textEntry != null)
+                {
+                    Logger.LogInfo("UI already initialized and valid, skipping setup");
+                    return;
+                }
+
+                Logger.LogInfo("Creating search UI...");
+                
+                // Clean up any existing UI
+                if (searchUIObject != null)
+                {
+                    Destroy(searchUIObject);
+                }
+
+                // Create UI at root level
+                searchUIObject = new GameObject("BinderSearchUI");
+                DontDestroyOnLoad(searchUIObject);
+                
+                // Add SimpleTextEntry component
+                textEntry = searchUIObject.AddComponent<SimpleTextEntry>();
+                
+                if (textEntry == null)
+                {
+                    throw new Exception("Failed to add SimpleTextEntry component");
+                }
+
+                // Subscribe to the text changed event
+                textEntry.OnTextChanged += OnSearchValueChanged;
+                
+                uiInitialized = true;
+                Logger.LogInfo($"UI initialization complete. TextEntry null? {textEntry == null}");
             }
-
-            if (HasPackSpecificConfig(OddsConfig, $"{packSection}.Final"))
+            catch (Exception ex)
             {
-                LoadConfigSection(OddsConfig, $"{packSection}.Final", FinalCardOdds[packSection]);
+                Logger.LogError($"Error setting up search UI: {ex.Message}\nStack trace: {ex.StackTrace}");
+                uiInitialized = false;
+                textEntry = null;
             }
         }
-    }
 
-    private bool HasPackSpecificConfig(ConfigFile config, string section)
-    {
-        // Just check if the config file has this section by looking for any setting in it
-        return File.ReadLines(config.ConfigFilePath)
-            .Any(line => line.Trim().StartsWith($"[{section}]"));
-    }
-
-    private void LoadConfigSection(ConfigFile config, string section, CardOddsConfig odds)
-    {
-        // Border type odds
-        odds.BorderTypeOdds[ECardBorderType.Base] = config.Bind(section, "Base", 1.0f, "").Value;
-        odds.BorderTypeOdds[ECardBorderType.FirstEdition] = config.Bind(section, "FirstEdition", 0.20f, "").Value;
-        odds.BorderTypeOdds[ECardBorderType.Silver] = config.Bind(section, "Silver", 0.08f, "").Value;
-        odds.BorderTypeOdds[ECardBorderType.Gold] = config.Bind(section, "Gold", 0.04f, "").Value;
-        odds.BorderTypeOdds[ECardBorderType.EX] = config.Bind(section, "EX", 0.01f, "").Value;
-        odds.BorderTypeOdds[ECardBorderType.FullArt] = config.Bind(section, "FullArt", 0.0025f, "").Value;
-
-        odds.UseCustomRarityWeights = config.Bind(section, "UseCustomRarityWeights", false, "").Value;
-
-        odds.RarityWeights[ERarity.Common] = config.Bind(section, "CommonWeight", 0.25f, "").Value;
-        odds.RarityWeights[ERarity.Rare] = config.Bind(section, "RareWeight", 0.25f, "").Value;
-        odds.RarityWeights[ERarity.Epic] = config.Bind(section, "EpicWeight", 0.25f, "").Value;
-        odds.RarityWeights[ERarity.Legendary] = config.Bind(section, "LegendaryWeight", 0.25f, "").Value;
-
-        odds.FoilChance = config.Bind(section, "FoilChance", 0.05f, "").Value;
-    }
-
-    private void LogLoadedConfig()
-    {
-        // First log global settings
-        Logger.LogInfo("Global Settings:");
-        Logger.LogInfo("  FirstSix Cards (Default):");
-        LogCardOddsConfig(GlobalFirstSixConfig, "    ");
-        Logger.LogInfo("  Final Card (Default):");
-        LogCardOddsConfig(GlobalFinalConfig, "    ");
-
-        // Then log pack-specific overrides
-        foreach (ECollectionPackType packType in Enum.GetValues(typeof(ECollectionPackType)))
+        private void OnDestroy()
         {
-            if (packType == ECollectionPackType.None) continue;
+            Logger.LogInfo("Plugin OnDestroy called");
+            if (textEntry != null)
+            {
+                textEntry.OnTextChanged -= OnSearchValueChanged;
+            }
+            if (searchUIObject != null)
+            {
+                Destroy(searchUIObject);
+            }
+            uiInitialized = false;
+            textEntry = null;
+        }
+
+        private void TriggerSearch()
+        {
+            try
+            {
+                Logger.LogInfo("TriggerSearch called");
+
+                if (textEntry == null)
+                {
+                    Logger.LogInfo("TextEntry is null, attempting to reinitialize...");
+                    SetupSearchUI();
+                    
+                    if (textEntry == null)
+                    {
+                        Logger.LogError("Failed to initialize TextEntry!");
+                        return;
+                    }
+                }
+
+                // Get current page
+                var binderUI = UnityEngine.Object.FindObjectOfType<CollectionBinderUI>();
+                if (binderUI != null)
+                {
+                    Logger.LogInfo("Found CollectionBinderUI");
+                    var pageText = binderUI.m_PageText.text;
+                    Logger.LogInfo($"Current page text: {pageText}");
+                    var parts = pageText.Split('/');
+                    if (parts.Length > 0)
+                    {
+                        int.TryParse(parts[0].Trim(), out currentPage);
+                        Logger.LogInfo($"Parsed current page: {currentPage}");
+                    }
+                }
+                else
+                {
+                    Logger.LogWarning("CollectionBinderUI not found!");
+                    return;
+                }
+
+                pendingValue = ""; // Reset pending value
+                textEntry.ShowEntryPanel();
+                Logger.LogInfo("Text entry panel shown");
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError($"Error triggering search: {ex.Message}\nStack trace: {ex.StackTrace}");
+            }
+        }
+
+        private void OnSearchValueChanged(string value)
+        {
+            Logger.LogInfo($"Search value changed to: {value}");
+            pendingValue = value;
+        }
+
+        private void NavigateToPage(string value)
+        {
+            if (string.IsNullOrEmpty(value)) return;
             
-            string packName = packType.ToString();
-            if (HasPackSpecificConfig(OddsConfig, $"{packName}.FirstSix") || 
-                HasPackSpecificConfig(OddsConfig, $"{packName}.Final"))
+            if (int.TryParse(value, out int targetPage))
             {
-                Logger.LogInfo($"Pack Type: {packName} (Overrides)");
-
-                if (HasPackSpecificConfig(OddsConfig, $"{packName}.FirstSix"))
+                var binderUI = UnityEngine.Object.FindObjectOfType<CollectionBinderUI>();
+                if (binderUI != null && binderUI.m_CollectionAlbum != null)
                 {
-                    Logger.LogInfo("  FirstSix Cards:");
-                    LogCardOddsConfig(FirstSixOdds[packName], "    ");
-                }
+                    // Get max page
+                    var pageText = binderUI.m_PageText.text;
+                    var parts = pageText.Split('/');
+                    if (parts.Length > 1)
+                    {
+                        if (int.TryParse(parts[1].Trim(), out int maxPage))
+                        {
+                            Logger.LogInfo($"Navigating from page {currentPage} to {targetPage} (max: {maxPage})");
+                            // Ensure target page is within bounds
+                            if (targetPage < 1) targetPage = 1;
+                            if (targetPage > maxPage) targetPage = maxPage;
 
-                if (HasPackSpecificConfig(OddsConfig, $"{packName}.Final"))
-                {
-                    Logger.LogInfo("  Final Card:");
-                    LogCardOddsConfig(FinalCardOdds[packName], "    ");
+                            // Simulate pressing next/prev buttons
+                            while (targetPage != currentPage)
+                            {
+                                if (targetPage > currentPage)
+                                {
+                                    AccessTools.Method(typeof(CollectionBinderFlipAnimCtrl), "OnPressGoNextPage")
+                                        ?.Invoke(binderUI.m_CollectionAlbum, null);
+                                    currentPage++;
+                                }
+                                else
+                                {
+                                    AccessTools.Method(typeof(CollectionBinderFlipAnimCtrl), "OnPressPrevPage")
+                                        ?.Invoke(binderUI.m_CollectionAlbum, null);
+                                    currentPage--;
+                                }
+                            }
+                            Logger.LogInfo($"Navigation complete - now on page {currentPage}");
+                        }
+                    }
                 }
             }
         }
-    }
 
-    private void LogCardOddsConfig(CardOddsConfig config, string indent)
-    {
-        Logger.LogInfo($"{indent}Border Type Odds:");
-        foreach (var borderType in config.BorderTypeOdds)
+        private void Update()
         {
-            Logger.LogInfo($"{indent}{indent}{borderType.Key}: {borderType.Value:P2}");
-        }
-
-        Logger.LogInfo($"{indent}UseCustomRarityWeights: {config.UseCustomRarityWeights}");
-        if (config.UseCustomRarityWeights)
-        {
-            Logger.LogInfo($"{indent}Rarity Weights:");
-            foreach (var rarity in config.RarityWeights)
+            if (SearchHotkey.Value.IsDown())
             {
-                Logger.LogInfo($"{indent}{indent}{rarity.Key}: {rarity.Value:P2}");
+                Logger.LogInfo("Search hotkey pressed");
+                Logger.LogInfo($"activeGame state: {activeGame}");
+                Logger.LogInfo($"UI initialized: {uiInitialized}");
+                Logger.LogInfo($"TextEntry null? {textEntry == null}");
+                
+                if (activeGame)
+                {
+                    var binderUI = UnityEngine.Object.FindObjectOfType<CollectionBinderUI>();
+                    Logger.LogInfo($"BinderUI found: {binderUI != null}");
+                    
+                    if (binderUI != null && binderUI.m_ScreenGrp.activeSelf)
+                    {
+                        TriggerSearch();
+                    }
+                }
+            }
+
+            // Handle Enter key for navigation
+            if (!string.IsNullOrEmpty(pendingValue) && 
+                textEntry != null && 
+                textEntry.gameObject.activeSelf && 
+                (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter)))
+            {
+                NavigateToPage(pendingValue);
+                pendingValue = ""; // Clear pending value after navigation
             }
         }
 
-        Logger.LogInfo($"{indent}Foil Chance: {config.FoilChance:P2}");
+        [HarmonyPatch(typeof(InteractionPlayerController), "Start")]
+        public class ActiveGamePatch
+        {
+            [HarmonyPostfix]
+            public static void Postfix()
+            {
+                activeGame = true;
+                Logger.LogInfo("Game is now active");
+            }
+        }
     }
 }

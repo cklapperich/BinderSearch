@@ -2,8 +2,8 @@
 
   <PropertyGroup>
     <TargetFramework>netstandard2.1</TargetFramework>
-    <AssemblyName>PackControl</AssemblyName>
-    <Product>Pack Control</Product>
+    <AssemblyName>BinderSearch</AssemblyName>
+    <Product>Binder Search</Product>
     <Version>0.1.0</Version>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <LangVersion>latest</LangVersion>
@@ -12,7 +12,7 @@
       https://nuget.bepinex.dev/v3/index.json;
       https://nuget.samboy.dev/v3/index.json
     </RestoreAdditionalProjectSources>
-    <RootNamespace>PackControl</RootNamespace>
+    <RootNamespace>BinderSearch</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>
