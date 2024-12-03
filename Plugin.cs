@@ -1,4 +1,4 @@
-﻿﻿using BepInEx;
+using BepInEx;
 using BepInEx.Configuration;
 using BepInEx.Logging;
 using System.Collections.Generic;
@@ -22,14 +22,55 @@ namespace BinderSearch
         public static bool activeGame = false;
         private static int currentPage = 1;
         private string pendingValue = "";
-        
+        private bool hasLoggedFirstUpdate = false;
+
         // UI Components
         private SimpleTextEntry textEntry;
         private bool uiInitialized = false;
         private static GameObject searchUIObject;
 
+        // Static instance for patches to access
+        public static Plugin Instance { get; private set; }
+
+        private void Update()
+        {
+            if (!hasLoggedFirstUpdate)
+            {
+                Logger.LogInfo("First Update() called in Plugin!");
+                hasLoggedFirstUpdate = true;
+            }
+            
+            if (SearchHotkey.Value.IsDown())
+            {
+                Logger.LogInfo("Search hotkey pressed");
+                Logger.LogInfo($"activeGame state: {activeGame}");
+                Logger.LogInfo($"UI initialized: {uiInitialized}");
+                Logger.LogInfo($"TextEntry null? {textEntry == null}");
+                
+                var binderUI = UnityEngine.Object.FindObjectOfType<CollectionBinderUI>();
+                Logger.LogInfo($"BinderUI found: {binderUI != null}");
+                
+                if (binderUI != null && binderUI.m_ScreenGrp.activeSelf)
+                {
+                    TriggerSearch();
+                }
+
+            }
+
+            // Handle Enter key for navigation
+            if (!string.IsNullOrEmpty(pendingValue) && 
+                textEntry != null && 
+                textEntry.gameObject.activeSelf && 
+                (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter)))
+            {
+                NavigateToPage(pendingValue);
+                pendingValue = ""; // Clear pending value after navigation
+            }
+        }
+        
         private void Awake()
         {
+            Instance = this;  // Set instance for patches to access
             Logger = base.Logger;
             Logger.LogInfo($"Plugin Binder Search is loaded!");
 
@@ -39,10 +80,7 @@ namespace BinderSearch
                 new KeyboardShortcut(KeyCode.T),
                 "Press this key to activate the binder search feature when the binder is open."
             );
-
-            harmony.PatchAll();
         }
-
         private void Start()
         {
             SetupSearchUI();
@@ -155,6 +193,17 @@ namespace BinderSearch
             }
         }
 
+/*
+[Info   :Binder Search] UI initialized: True
+[Info   :Binder Search] TextEntry null? False
+[Info   :Binder Search] BinderUI found: True
+[Info   :Binder Search] TriggerSearch called
+[Info   :Binder Search] Found CollectionBinderUI
+[Info   :Binder Search] Current page text: 1 / 121
+[Info   :Binder Search] Parsed current page: 1
+[Info   :Binder Search] Text entry panel shown
+[Info   :Binder Search] Search value changed to: 4
+*/
         private void OnSearchValueChanged(string value)
         {
             Logger.LogInfo($"Search value changed to: {value}");
@@ -188,49 +237,6 @@ namespace BinderSearch
                         }
                     }
                 }
-            }
-        }
-
-        private void Update()
-        {
-            if (SearchHotkey.Value.IsDown())
-            {
-                Logger.LogInfo("Search hotkey pressed");
-                Logger.LogInfo($"activeGame state: {activeGame}");
-                Logger.LogInfo($"UI initialized: {uiInitialized}");
-                Logger.LogInfo($"TextEntry null? {textEntry == null}");
-                
-                if (activeGame)
-                {
-                    var binderUI = UnityEngine.Object.FindObjectOfType<CollectionBinderUI>();
-                    Logger.LogInfo($"BinderUI found: {binderUI != null}");
-                    
-                    if (binderUI != null && binderUI.m_ScreenGrp.activeSelf)
-                    {
-                        TriggerSearch();
-                    }
-                }
-            }
-
-            // Handle Enter key for navigation
-            if (!string.IsNullOrEmpty(pendingValue) && 
-                textEntry != null && 
-                textEntry.gameObject.activeSelf && 
-                (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter)))
-            {
-                NavigateToPage(pendingValue);
-                pendingValue = ""; // Clear pending value after navigation
-            }
-        }
-
-        [HarmonyPatch(typeof(InteractionPlayerController), "Start")]
-        public class ActiveGamePatch
-        {
-            [HarmonyPostfix]
-            public static void Postfix()
-            {
-                activeGame = true;
-                Logger.LogInfo("Game is now active");
             }
         }
     }

@@ -2,6 +2,7 @@ using System;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
+using System.Collections;
 
 public class SimpleTextEntry : MonoBehaviour
 {
@@ -131,40 +132,45 @@ public class SimpleTextEntry : MonoBehaviour
             inputField.onEndEdit.RemoveListener(HandleEndEdit);
         }
     }
+    private Coroutine debounceCoroutine;
+    private const float DEBOUNCE_TIME = 0.3f; // 300ms delay
 
     private void HandleTextChange(string newText)
     {
-        OnTextChanged?.Invoke(newText);
+        if (debounceCoroutine != null)
+        {
+            StopCoroutine(debounceCoroutine);
+        }
+        debounceCoroutine = StartCoroutine(DebounceTextChange(newText));
+    }
+
+    private IEnumerator DebounceTextChange(string text)
+    {
+        yield return new WaitForSeconds(DEBOUNCE_TIME);
+        OnTextChanged?.Invoke(text);
     }
 
     private void HandleEndEdit(string finalText)
     {
-        if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter))
-        {
-            CloseEntryPanel();
-        }
-        else if (Input.GetKeyDown(KeyCode.Escape))
-        {
-            CloseEntryPanel();
-        }
+        CloseEntryPanel();
     }
 
     public void ShowEntryPanel()
     {
-        if (entryPanel != null)
+        if (entryPanel != null && inputField != null)
         {
             entryPanel.SetActive(true);
-            
-            if (inputField != null)
-            {
-                inputField.text = "";
-                inputField.ActivateInputField();
-                inputField.Select();
-            }
+            inputField.text = "";
+            inputField.ActivateInputField();
+            inputField.Select();
+        }
+        else
+        {
+            Debug.LogWarning("Cannot show panel - some elements are missing");
         }
     }
 
-    private void CloseEntryPanel()
+    public void CloseEntryPanel()
     {
         if (entryPanel != null)
         {
