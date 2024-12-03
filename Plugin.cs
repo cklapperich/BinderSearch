@@ -1,14 +1,9 @@
 using BepInEx;
 using BepInEx.Configuration;
 using BepInEx.Logging;
-using System.Collections.Generic;
-using System.IO;
 using System;
-using System.Linq;
 using HarmonyLib;
 using UnityEngine;
-using TMPro;
-using UnityEngine.UI;
 
 namespace BinderSearch
 {
