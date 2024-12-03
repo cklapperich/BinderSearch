@@ -4,6 +4,7 @@ using BepInEx.Logging;
 using System;
 using HarmonyLib;
 using UnityEngine;
+using BinderSearch.Helpers;
 
 namespace BinderSearch
 {
@@ -170,7 +171,8 @@ namespace BinderSearch
                             if (targetPage < 1) targetPage = 1;
                             if (targetPage > maxPage) targetPage = maxPage;
 
-                            // TODO: call the binder animation ctrl flip patch here.
+                            binderUI.SetCurrentPage(targetPage);
+                            BinderNavigationHelper.NavigateToPage(binderUI.m_CollectionAlbum, targetPage, Logger);
 
                             Logger.LogInfo($"Navigation complete - now on page {currentPage}");
                         }
