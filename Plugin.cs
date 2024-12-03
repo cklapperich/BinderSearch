@@ -21,8 +21,6 @@ namespace BinderSearch
         public static ConfigEntry<KeyboardShortcut> SearchHotkey;
         public static bool activeGame = false;
         private static int currentPage = 1;
-        private string pendingValue = "";
-        private bool hasLoggedFirstUpdate = false;
 
         // UI Components
         private SimpleTextEntry textEntry;
@@ -33,38 +31,18 @@ namespace BinderSearch
         public static Plugin Instance { get; private set; }
 
         private void Update()
-        {
-            if (!hasLoggedFirstUpdate)
-            {
-                Logger.LogInfo("First Update() called in Plugin!");
-                hasLoggedFirstUpdate = true;
-            }
-            
+        {            
             if (SearchHotkey.Value.IsDown())
             {
                 Logger.LogInfo("Search hotkey pressed");
-                Logger.LogInfo($"activeGame state: {activeGame}");
-                Logger.LogInfo($"UI initialized: {uiInitialized}");
-                Logger.LogInfo($"TextEntry null? {textEntry == null}");
-                
+                //Logger.LogInfo($"activeGame state: {activeGame}"); 
                 var binderUI = UnityEngine.Object.FindObjectOfType<CollectionBinderUI>();
-                Logger.LogInfo($"BinderUI found: {binderUI != null}");
                 
-                if (binderUI != null && binderUI.m_ScreenGrp.activeSelf)
+                if (binderUI == null || !binderUI.m_ScreenGrp.activeSelf)
                 {
-                    TriggerSearch();
+                    return;
                 }
-
-            }
-
-            // Handle Enter key for navigation
-            if (!string.IsNullOrEmpty(pendingValue) && 
-                textEntry != null && 
-                textEntry.gameObject.activeSelf && 
-                (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter)))
-            {
-                NavigateToPage(pendingValue);
-                pendingValue = ""; // Clear pending value after navigation
+                TriggerSearch();
             }
         }
         
@@ -92,11 +70,8 @@ namespace BinderSearch
             {
                 if (uiInitialized && textEntry != null)
                 {
-                    Logger.LogInfo("UI already initialized and valid, skipping setup");
                     return;
                 }
-
-                Logger.LogInfo("Creating search UI...");
                 
                 // Clean up any existing UI
                 if (searchUIObject != null)
@@ -120,7 +95,6 @@ namespace BinderSearch
                 textEntry.OnTextChanged += OnSearchValueChanged;
                 
                 uiInitialized = true;
-                Logger.LogInfo($"UI initialization complete. TextEntry null? {textEntry == null}");
             }
             catch (Exception ex)
             {
@@ -132,7 +106,6 @@ namespace BinderSearch
 
         private void OnDestroy()
         {
-            Logger.LogInfo("Plugin OnDestroy called");
             if (textEntry != null)
             {
                 textEntry.OnTextChanged -= OnSearchValueChanged;
@@ -151,41 +124,23 @@ namespace BinderSearch
             {
                 Logger.LogInfo("TriggerSearch called");
 
-                if (textEntry == null)
-                {
-                    Logger.LogInfo("TextEntry is null, attempting to reinitialize...");
-                    SetupSearchUI();
-                    
-                    if (textEntry == null)
-                    {
-                        Logger.LogError("Failed to initialize TextEntry!");
-                        return;
-                    }
-                }
-
                 // Get current page
                 var binderUI = UnityEngine.Object.FindObjectOfType<CollectionBinderUI>();
-                if (binderUI != null)
-                {
-                    Logger.LogInfo("Found CollectionBinderUI");
-                    var pageText = binderUI.m_PageText.text;
-                    Logger.LogInfo($"Current page text: {pageText}");
-                    var parts = pageText.Split('/');
-                    if (parts.Length > 0)
-                    {
-                        int.TryParse(parts[0].Trim(), out currentPage);
-                        Logger.LogInfo($"Parsed current page: {currentPage}");
-                    }
-                }
-                else
+                if (binderUI == null)
                 {
                     Logger.LogWarning("CollectionBinderUI not found!");
                     return;
                 }
+                
+                var pageText = binderUI.m_PageText.text;
+                var parts = pageText.Split('/');
+                if (parts.Length > 0)
+                {
+                    int.TryParse(parts[0].Trim(), out currentPage);
+                    Logger.LogInfo($"Parsed current page: {currentPage}");
+                }
 
-                pendingValue = ""; // Reset pending value
                 textEntry.ShowEntryPanel();
-                Logger.LogInfo("Text entry panel shown");
             }
             catch (Exception ex)
             {
@@ -193,21 +148,10 @@ namespace BinderSearch
             }
         }
 
-/*
-[Info   :Binder Search] UI initialized: True
-[Info   :Binder Search] TextEntry null? False
-[Info   :Binder Search] BinderUI found: True
-[Info   :Binder Search] TriggerSearch called
-[Info   :Binder Search] Found CollectionBinderUI
-[Info   :Binder Search] Current page text: 1 / 121
-[Info   :Binder Search] Parsed current page: 1
-[Info   :Binder Search] Text entry panel shown
-[Info   :Binder Search] Search value changed to: 4
-*/
         private void OnSearchValueChanged(string value)
         {
-            Logger.LogInfo($"Search value changed to: {value}");
-            pendingValue = value;
+            //Logger.LogInfo($"Search value changed to: {value}");
+            NavigateToPage(value);
         }
 
         private void NavigateToPage(string value)
